@@ -389,6 +389,47 @@ public class ManagedBeanDiagnosticsCollector extends AbstractDiagnosticsCollecto
                     }
                 }
             }
+
+            /**
+             * Validate @Delegate annotation usage
+             * The @Delegate annotation is only valid on injection points (fields or parameters).
+             * It must not be used on methods, classes, or other locations.
+             *
+             * https://jakarta.ee/specifications/cdi/3.0/jakarta-cdi-spec-3.0#delegate_attribute
+             */
+            for (PsiMethod method : methods) {
+                // Skip methods with @Inject annotation (bean constructors and initializer methods)
+                // as @Delegate on their parameters is valid
+                boolean hasInject = false;
+                for (PsiAnnotation methodAnnotation : method.getAnnotations()) {
+                    if (isMatchedJavaElement(type, methodAnnotation.getQualifiedName(), "jakarta.inject.Inject")) {
+                        hasInject = true;
+                        break;
+                    }
+                }
+                
+                // Only check for @Delegate on regular methods (not bean constructors or initializer methods)
+                if (!hasInject) {
+                    for (PsiAnnotation annotation : method.getAnnotations()) {
+                        if (isMatchedJavaElement(type, annotation.getQualifiedName(), DELEGATE_FQ_NAME)) {
+                            diagnostics.add(createDiagnostic(annotation, unit,
+                                    Messages.getMessage("InvalidDelegateAnnotationOnMethod"),
+                                    DIAGNOSTIC_CODE_INVALID_DELEGATE_USAGE, null,
+                                    DiagnosticSeverity.Error));
+                        }
+                    }
+                }
+            }
+
+            // Check for @Delegate on class
+            for (PsiAnnotation annotation : typeAnnotations) {
+                if (isMatchedJavaElement(type, annotation.getQualifiedName(), DELEGATE_FQ_NAME)) {
+                    diagnostics.add(createDiagnostic(annotation, unit,
+                            Messages.getMessage("InvalidDelegateAnnotationOnClass"),
+                            DIAGNOSTIC_CODE_INVALID_DELEGATE_USAGE, null,
+                            DiagnosticSeverity.Error));
+                }
+            }
         }
     }
 

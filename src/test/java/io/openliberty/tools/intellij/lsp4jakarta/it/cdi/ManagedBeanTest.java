@@ -1626,4 +1626,139 @@ public class ManagedBeanTest extends BaseJakartaTest {
         CodeAction removeNamedGreetingAction = ca(uri, "Remove @Named", namedGreetingDiagnostic, removeNamedGreetingEdit);
         assertJavaCodeAction(codeActionParams2, utils, removeNamedGreetingAction);
     }
+    @Test
+    public void invalidDelegateAnnotation() throws Exception {
+        Module module = createMavenModule(new File("src/test/resources/projects/maven/jakarta-sample"));
+        IPsiUtils utils = PsiUtilsLSImpl.getInstance(getProject());
+
+        VirtualFile javaFile = LocalFileSystem.getInstance().refreshAndFindFileByPath(ModuleUtilCore.getModuleDirPath(module)
+                + "/src/main/java/io/openliberty/sample/jakarta/cdi/InvalidDelegateAnnotation.java");
+        String uri = VfsUtilCore.virtualToIoFile(javaFile).toURI().toString();
+
+        JakartaJavaDiagnosticsParams diagnosticsParams = new JakartaJavaDiagnosticsParams();
+        diagnosticsParams.setUris(Arrays.asList(uri));
+
+        // Test expected diagnostics for invalid @Delegate usage
+        Diagnostic delegateOnClassDiagnostic = d(14, 0, 9,
+                "The @Delegate annotation is only valid on injection points (fields or parameters), not on classes.",
+                DiagnosticSeverity.Error, "jakarta-cdi", "InvalidDelegateAnnotation");
+
+        Diagnostic delegateOnProcessPaymentMethodDiagnostic = d(35, 4, 13,
+                "The @Delegate annotation is only valid on injection points (fields or parameters), not on methods.",
+                DiagnosticSeverity.Error, "jakarta-cdi", "InvalidDelegateAnnotation");
+
+        Diagnostic delegateOnGetPaymentStatusMethodDiagnostic = d(41, 4, 13,
+                "The @Delegate annotation is only valid on injection points (fields or parameters), not on methods.",
+                DiagnosticSeverity.Error, "jakarta-cdi", "InvalidDelegateAnnotation");
+
+        assertJavaDiagnostics(diagnosticsParams, utils, delegateOnClassDiagnostic,
+                delegateOnProcessPaymentMethodDiagnostic, delegateOnGetPaymentStatusMethodDiagnostic);
+
+        // Test code action for removing @Delegate annotation from class
+        JakartaJavaCodeActionParams codeActionParamsForClass = createCodeActionParams(uri, delegateOnClassDiagnostic);
+        String classFixedContent = "package io.openliberty.sample.jakarta.cdi;\n\n" +
+                "import jakarta.decorator.Decorator;\n" +
+                "import jakarta.decorator.Delegate;\n" +
+                "import jakarta.enterprise.context.Dependent;\n" +
+                "import jakarta.inject.Inject;\n\n" +
+                "/**\n" +
+                " * Test class for @Delegate annotation usage - both valid and invalid scenarios.\n" +
+                " * Valid: @Delegate on injection points (fields, constructor parameters, initializer method parameters)\n" +
+                " * Invalid: @Delegate on classes, regular methods, or other locations\n" +
+                " */\n" +
+                "@Decorator\n" +
+                "@Dependent\n" +
+                "// Invalid: @Delegate on class\n" +
+                "public class InvalidDelegateAnnotation implements PaymentService {\n" +
+                "    \n" +
+                "    // Valid: @Delegate on field (injection point)\n" +
+                "    @Inject\n" +
+                "    @Delegate\n" +
+                "    private PaymentService delegateField;\n" +
+                "    \n" +
+                "    // Valid: @Delegate on constructor parameter (injection point)\n" +
+                "    @Inject\n" +
+                "    public InvalidDelegateAnnotation(@Delegate PaymentService delegateParam) {\n" +
+                "        this.delegateField = delegateParam;\n" +
+                "    }\n" +
+                "    \n" +
+                "    // Valid: @Delegate on initializer method parameter (injection point)\n" +
+                "    @Inject\n" +
+                "    public void init(@Delegate PaymentService delegateInitParam) {\n" +
+                "        // Initializer method\n" +
+                "    }\n" +
+                "    \n" +
+                "    // Invalid: @Delegate on method\n" +
+                "    @Delegate\n" +
+                "    public void processPayment(double amount) {\n" +
+                "        delegateField.processPayment(amount);\n" +
+                "    }\n" +
+                "    \n" +
+                "    // Invalid: @Delegate on method\n" +
+                "    @Delegate\n" +
+                "    public String getPaymentStatus() {\n" +
+                "        return delegateField.getPaymentStatus();\n" +
+                "    }\n" +
+                "}\n\n" +
+                "interface PaymentService {\n" +
+                "    void processPayment(double amount);\n" +
+                "    String getPaymentStatus();\n" +
+                "}";
+        TextEdit classFixTextEdit = te(0, 0, 50, 1, classFixedContent);
+        CodeAction removeDelegateFromClassAction = ca(uri, "Remove @Delegate", delegateOnClassDiagnostic, classFixTextEdit);
+        assertJavaCodeAction(codeActionParamsForClass, utils, removeDelegateFromClassAction);
+
+        // Test code action for removing @Delegate from processPayment method
+        JakartaJavaCodeActionParams codeActionParamsForMethod = createCodeActionParams(uri, delegateOnProcessPaymentMethodDiagnostic);
+        String methodFixedContent = "package io.openliberty.sample.jakarta.cdi;\n\n" +
+                "import jakarta.decorator.Decorator;\n" +
+                "import jakarta.decorator.Delegate;\n" +
+                "import jakarta.enterprise.context.Dependent;\n" +
+                "import jakarta.inject.Inject;\n\n" +
+                "/**\n" +
+                " * Test class for @Delegate annotation usage - both valid and invalid scenarios.\n" +
+                " * Valid: @Delegate on injection points (fields, constructor parameters, initializer method parameters)\n" +
+                " * Invalid: @Delegate on classes, regular methods, or other locations\n" +
+                " */\n" +
+                "@Decorator\n" +
+                "@Dependent\n" +
+                "@Delegate  // Invalid: @Delegate on class\n" +
+                "public class InvalidDelegateAnnotation implements PaymentService {\n" +
+                "    \n" +
+                "    // Valid: @Delegate on field (injection point)\n" +
+                "    @Inject\n" +
+                "    @Delegate\n" +
+                "    private PaymentService delegateField;\n" +
+                "    \n" +
+                "    // Valid: @Delegate on constructor parameter (injection point)\n" +
+                "    @Inject\n" +
+                "    public InvalidDelegateAnnotation(@Delegate PaymentService delegateParam) {\n" +
+                "        this.delegateField = delegateParam;\n" +
+                "    }\n" +
+                "    \n" +
+                "    // Valid: @Delegate on initializer method parameter (injection point)\n" +
+                "    @Inject\n" +
+                "    public void init(@Delegate PaymentService delegateInitParam) {\n" +
+                "        // Initializer method\n" +
+                "    }\n" +
+                "    \n" +
+                "    // Invalid: @Delegate on method\n" +
+                "    public void processPayment(double amount) {\n" +
+                "        delegateField.processPayment(amount);\n" +
+                "    }\n" +
+                "    \n" +
+                "    // Invalid: @Delegate on method\n" +
+                "    @Delegate\n" +
+                "    public String getPaymentStatus() {\n" +
+                "        return delegateField.getPaymentStatus();\n" +
+                "    }\n" +
+                "}\n\n" +
+                "interface PaymentService {\n" +
+                "    void processPayment(double amount);\n" +
+                "    String getPaymentStatus();\n" +
+                "}";
+        TextEdit methodFixTextEdit = te(0, 0, 50, 1, methodFixedContent);
+        CodeAction removeDelegateFromMethodAction = ca(uri, "Remove @Delegate", delegateOnProcessPaymentMethodDiagnostic, methodFixTextEdit);
+        assertJavaCodeAction(codeActionParamsForMethod, utils, removeDelegateFromMethodAction);
+    }
 }

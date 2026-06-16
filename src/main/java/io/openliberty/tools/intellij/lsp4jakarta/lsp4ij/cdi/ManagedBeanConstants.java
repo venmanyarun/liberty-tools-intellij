@@ -31,6 +31,7 @@ public class ManagedBeanConstants {
     public static final String APPLICATION_SCOPED_FQ_NAME = "jakarta.enterprise.context.ApplicationScoped";
     public static final String STATELESS_FQ_NAME = "jakarta.ejb.Stateless";
     public static final String NAMED_FQ_NAME = "jakarta.inject.Named";
+    public static final String DELEGATE_FQ_NAME = "jakarta.decorator.Delegate";
 
     public static final String DIAGNOSTIC_SOURCE = "jakarta-cdi";
     public static final String DIAGNOSTIC_CODE = "InvalidManagedBeanAnnotation";
@@ -51,6 +52,7 @@ public class ManagedBeanConstants {
     public static final String DIAGNOSTIC_CODE_DEPENDENT_CONDITIONAL_OBSERVER = "InvalidDependentScopeWithConditionalObserver";
     public static final String DIAGNOSTIC_MULTIPLE_OBSERVER_PARAMS = "InvalidMultipleObserverParams";
     public static final String DIAGNOSTIC_CODE_REDUNDANT_DISPOSES = "RemoveExtraDisposes";
+    public static final String DIAGNOSTIC_CODE_INVALID_DELEGATE_USAGE = "InvalidDelegateAnnotation";
     //Added as part of fix that adds two quick fixes which are mutually exclusive issue #540
     public static final String[] INVALID_DISPOSER_FQ_PARAMS = { DISPOSES_FQ_NAME };
     public static final String[] INVALID_DISPOSER_FQ_CONFLICTED_PARAMS = { OBSERVES_FQ_NAME, OBSERVES_ASYNC_FQ_NAME };
