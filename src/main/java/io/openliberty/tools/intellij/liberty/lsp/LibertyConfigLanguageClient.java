@@ -10,10 +10,15 @@
  ******************************************************************************/
 package io.openliberty.tools.intellij.liberty.lsp;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.intellij.openapi.project.Project;
 import com.redhat.devtools.lsp4ij.client.LanguageClientImpl;
+import com.redhat.devtools.lsp4ij.client.features.LSPClientFeatures;
+import org.eclipse.lsp4j.ClientCapabilities;
+import org.eclipse.lsp4j.InitializeParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Client for Liberty language server
@@ -23,8 +28,47 @@ public class LibertyConfigLanguageClient extends LanguageClientImpl {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LibertyConfigLanguageClient.class);
 
+    private final LSPClientFeatures clientFeatures = new LSPClientFeatures() {
+        @Override
+        public void initializeParams(InitializeParams params) {
+            super.initializeParams(params);
+
+            ClientCapabilities capabilities = params.getCapabilities();
+            if (capabilities == null) {
+                capabilities = new ClientCapabilities();
+                params.setCapabilities(capabilities);
+            }
+
+            // Set inline completion capability on textDocument using a Map-based approach
+            // This is necessary because LSP4J might not have direct support for inlineCompletion
+            var textDocument = capabilities.getTextDocument();
+            if (textDocument == null) {
+                textDocument = new org.eclipse.lsp4j.TextDocumentClientCapabilities();
+                capabilities.setTextDocument(textDocument);
+            }
+            
+            // Use Gson to dynamically add the inlineCompletion capability
+            Gson gson = new Gson();
+            JsonObject textDocJson = gson.toJsonTree(textDocument).getAsJsonObject();
+            
+            JsonObject inlineCompletionCapability = new JsonObject();
+            inlineCompletionCapability.addProperty("dynamicRegistration", true);
+            textDocJson.add("inlineCompletion", inlineCompletionCapability);
+            
+            // Convert back to TextDocumentClientCapabilities
+            org.eclipse.lsp4j.TextDocumentClientCapabilities updatedTextDoc =
+                gson.fromJson(textDocJson, org.eclipse.lsp4j.TextDocumentClientCapabilities.class);
+            capabilities.setTextDocument(updatedTextDoc);
+        }
+    };
+
     public LibertyConfigLanguageClient(Project project) {
         super(project);
+    }
+
+    @Override
+    public LSPClientFeatures getClientFeatures() {
+        return clientFeatures;
     }
 
 }
