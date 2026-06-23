@@ -99,19 +99,98 @@ public class BeanValidationQuickFix implements IJavaCodeActionParticipant {
         }
         final String name = toResolve.getTitle();
         final PsiModifierListOwner modifierListOwner = PsiTreeUtil.getParentOfType(node, PsiModifierListOwner.class);
+        
+        // First, try to find annotation in modifier list (field/method/parameter-level annotations)
         final PsiAnnotation[] annotations = modifierListOwner.getAnnotations();
+        PsiAnnotation annotationToRemove = null;
 
         if (annotations != null && annotations.length > 0) {
-            final Optional<PsiAnnotation> annotationToRemove =
+            final Optional<PsiAnnotation> foundAnnotation =
                     Arrays.stream(annotations).filter(a -> annotationName.equals(a.getQualifiedName())).findFirst();
-            if (annotationToRemove.isPresent()) {
-                boolean isFormatRequired = false;
-                final RemoveAnnotationsProposal proposal = new RemoveAnnotationsProposal(name, context.getSource().getCompilationUnit(),
-                        context.getASTRoot(), parentType, 0, Collections.singletonList(annotationToRemove.get()), isFormatRequired);
-
-                ExceptionUtil.executeWithWorkspaceEditHandling(context, proposal, toResolve, LOGGER, "Unable to create workspace edit for code action to remove constraint annotation");
+            if (foundAnnotation.isPresent()) {
+                annotationToRemove = foundAnnotation.get();
             }
         }
+        
+        // If not found in modifiers, search for TYPE_USE annotations within type structures
+        if (annotationToRemove == null) {
+            annotationToRemove = findTypeUseAnnotation(modifierListOwner, annotationName);
+        }
+
+        if (annotationToRemove != null) {
+            boolean isFormatRequired = false;
+            final RemoveAnnotationsProposal proposal = new RemoveAnnotationsProposal(name, context.getSource().getCompilationUnit(),
+                    context.getASTRoot(), parentType, 0, Collections.singletonList(annotationToRemove), isFormatRequired);
+
+            ExceptionUtil.executeWithWorkspaceEditHandling(context, proposal, toResolve, LOGGER, "Unable to create workspace edit for code action to remove constraint annotation");
+        }
+    }
+    
+    /**
+     * Find TYPE_USE annotation within type structures (generics, arrays, etc.)
+     *
+     * @param modifierListOwner the field, method, or parameter
+     * @param annotationName the fully qualified annotation name to find
+     * @return the PsiAnnotation if found, null otherwise
+     */
+    private PsiAnnotation findTypeUseAnnotation(PsiModifierListOwner modifierListOwner, String annotationName) {
+        PsiTypeElement typeElement = null;
+        
+        // Get the type element based on the element type
+        if (modifierListOwner instanceof PsiField) {
+            typeElement = ((PsiField) modifierListOwner).getTypeElement();
+        } else if (modifierListOwner instanceof PsiMethod) {
+            typeElement = ((PsiMethod) modifierListOwner).getReturnTypeElement();
+        } else if (modifierListOwner instanceof PsiParameter) {
+            typeElement = ((PsiParameter) modifierListOwner).getTypeElement();
+        }
+        
+        if (typeElement == null) {
+            return null;
+        }
+        
+        // Recursively search for the annotation in the type structure
+        return findAnnotationInTypeElement(typeElement, annotationName);
+    }
+    
+    /**
+     * Recursively search for an annotation within a type element structure
+     *
+     * @param typeElement the type element to search
+     * @param annotationName the fully qualified annotation name to find
+     * @return the PsiAnnotation if found, null otherwise
+     */
+    private PsiAnnotation findAnnotationInTypeElement(PsiTypeElement typeElement, String annotationName) {
+        if (typeElement == null) {
+            return null;
+        }
+        
+        // Check annotations on this type element
+        PsiAnnotation[] annotations = typeElement.getAnnotations();
+        for (PsiAnnotation annotation : annotations) {
+            if (annotationName.equals(annotation.getQualifiedName())) {
+                return annotation;
+            }
+        }
+        
+        // Recursively search all descendant type elements (not just direct children)
+        // This handles nested generics like Map<String, List<@Email Integer>>
+        PsiElement[] allElements = PsiTreeUtil.collectElements(typeElement,
+            element -> element instanceof PsiTypeElement && element != typeElement);
+        
+        for (PsiElement element : allElements) {
+            if (element instanceof PsiTypeElement) {
+                PsiTypeElement childTypeElement = (PsiTypeElement) element;
+                PsiAnnotation[] childAnnotations = childTypeElement.getAnnotations();
+                for (PsiAnnotation annotation : childAnnotations) {
+                    if (annotationName.equals(annotation.getQualifiedName())) {
+                        return annotation;
+                    }
+                }
+            }
+        }
+        
+        return null;
     }
 
     private void resolveStaticModifierCodeAction(JavaCodeActionResolveContext context) {
